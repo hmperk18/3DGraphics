@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Hello WebGL</title>
+    <script type="vertex-shader" id="standardVertexShader">
+        attribute vec3 a_position; // the position of each vertex
+        attribute vec3 a_normal;   // the surface normal of each vertex
+        attribute vec2 a_texcoord; // texture coordinates of each vertex
+
+        uniform mat4 u_matrixM; // the model matrix of this object
+        uniform mat4 u_matrixV; // the view matrix of the camera
+        uniform mat4 u_matrixP; // the projection matrix of the camera
+
+        // inverse transpose to change normals into world space, this will make sure
+        // our normals are not stretched when the object is scaled.
+        uniform mat3 u_matrixInvTransM;
+
+        varying vec3 v_normal;    // normal to forward to the fragment shader
+        varying vec2 v_texcoord;  // texture coordinates to forward to the fragment shader
+
+        void main() {
+            v_normal = normalize(u_matrixInvTransM * a_normal); // set normal data for fragment shader
+            v_texcoord = a_texcoord; // set texture coordinates for fragment shader
+            // calculate new position
+            gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
+        }
+
+    </script>
+    <script type="fragment-shader" id="standardFragmentShader">
+        precision highp float; //float precision settings
+
+        uniform vec4 u_tint;            // the tint color of this object
+        uniform vec3 u_directionalLight;// directional light in world space
+        uniform vec3 u_directionalColor;// light color
+        uniform vec3 u_ambientColor;    // intensity of ambient light
+
+        uniform sampler2D u_mainTex;    // main texture to use for color lookup
+
+        varying vec3 v_normal;  // normal from the vertex shader
+        varying vec2 v_texcoord;// texture coordinates from the vertex shader
+
+        void main(void){
+            vec3 normal = normalize(v_normal);
+
+            // lambertian diffuse lighting
+            float diffuse = max(0.0, dot(normal, -u_directionalLight));
+            vec3 diffuseColor = u_directionalColor * diffuse;
+
+            // combine lighting from directional and ambient light
+            vec3 ambientDiffuse = u_ambientColor + diffuseColor;
+            // make sure light intensity does not exceed 1.0
+            ambientDiffuse = clamp(ambientDiffuse, vec3(0.0,0.0,0.0), vec3(1.0,1.0,1.0));
+
+            // texture and tint color
+            vec4 textureColor = texture2D(u_mainTex, v_texcoord); // lookup color from texture
+            vec4 combinedColor = textureColor * u_tint;       // blend texture and tint color
+
+            // use multiplicative color blending to combine lighting and color
+            gl_FragColor = vec4(ambientDiffuse * combinedColor.xyz, combinedColor.a);
+            //gl_FragColor = vec4(v_texcoord, 0, 1);
+        }
+
+    </script>
+
+    <script type="vertex-shader" id="gridVertexShader">
+        // a shader that uses vertex colors to render our axis grid
+        attribute vec3 a_position; // the position of each vertex
+        attribute vec3 a_vertexcolor; // the color of each vertex
+
+        uniform mat4 u_matrixM; // the model matrix of this object
+        uniform mat4 u_matrixV; // the view matrix of the camera
+        uniform mat4 u_matrixP; // the perspective matrix of the camera
+
+        varying vec3 vertexcolor; // varying to bring vertexcolor to the fragment shader
+        void main() {
+            //gl_Position = u_matrixM * u_matrixV * u_matrixP * vec4 (a_position, 1);
+            gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
+            vertexcolor = a_vertexcolor;
+        }
+    </script>
+    <script type="fragment-shader" id="gridFragmentShader">
+        // a shader that uses vertex colors to render our axis grid
+        precision highp float; //float precision settings
+        varying vec3 vertexcolor; // vertexcolor from vertex shader
+
+        void main()
+        {
+            gl_FragColor = vec4(vertexcolor, 1);
+        }
+    </script>
+</head>
+<body>
+	<canvas width="0" height="0" id="webgl-canvas"></canvas>
+
+    <script src="webgl-debug.js"></script>
+    <script src="math.js"></script>
+    <script src="gl-utils.js"></script>
+    <script src="transform.js"></script>
+    <script src="shader.js"></script>
+    <script src="renderloop.js"></script>
+    <script src="model.js"></script>
+    <script src="primitives.js"></script>
+    <script src="input.js"></script>
+    <script src="camera.js"></script>
+    <script src="grid.js"></script>
+    <script src="objparser.js"></script>
+    <script src="howler.js"></script>
+
+    <button id="startbutton" width="300" height="300" onclick="load()" style="
+        background-color: #111111; border: none; color: white; padding: 50px 50px; text-align: center;
+        text-decoration: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        font-size: 50px;">Click here to start the animation</button>
+
+    <script type="text/javascript">
+        "use strict"; // use strict javascript compiling
+
+        //--------------------------------------------------
+        // Global Cashes
+        //--------------------------------------------------
+        var MeshCache = {}; // here all mesh objects are stored, see GLUtils.createMesh() for details on how a mesh is added.
+        var TextureCache = {}; // here all texture objects are stored, see GLUtils.loadTexture() for details on how a texture is added.
+
+        // -----------------------------------------
+        // Global variables
+        // -----------------------------------------
+        var gl;
+        var canvas;
+        var renderLoop;
+
+        var g_standardShader;
+
+        var g_camera;
+        var g_cameraController;
+
+        var g_figure;
+
+        // a basic grid with x, y, and z axis, to visualize our space.
+        var g_gridShader; // shader to render the grid
+        var g_grid; // the grid model
+
+        var timer = 0;
+        var music;
+
+        // lighting
+        var g_lightingData = {
+            directionalLight: new Vector3(-1, -1, -0.5).normalize(), // light direction
+            directionalColor: new Vector3(1.0, 1.0, 1.0), // light color by default white
+            ambientColor: new Vector3(0.1, 0.1, 0.1) // dark gray
+        }
+
+        function setup(){
+            canvas = document.getElementById("webgl-canvas");
+            gl = GLUtils.createWebGLInstance(canvas, true);
+            gl.clearColor(0.2, 0.1, 0.5, 1); // set clear color (RGBA)
+            gl.fitScreen();
+            gl.enable(gl.DEPTH_TEST);
+            gl.depthFunc(gl.LEQUAL);
+            Input.initialize(canvas);
+        }
+
+        function init(){
+            g_standardShader = new Shader(gl, GLUtils.getDomShaderSrc("standardVertexShader"),
+                                      GLUtils.getDomShaderSrc("standardFragmentShader"));
+            g_gridShader = new Shader(gl, GLUtils.getDomShaderSrc("gridVertexShader"),
+                                    GLUtils.getDomShaderSrc("gridFragmentShader"));
+
+            g_camera = new PerspectiveCamera(gl, 45, 0.1, 1000, canvas.width / canvas.height);
+            g_cameraController = new OrbiterCameraController(canvas, g_camera);
+            g_cameraController.target.set(0,1.5,0);
+
+            GLUtils.loadTexture(gl, "bone", "ressources/bone.png");
+
+            let material = {tint: [1,1,1,1],
+                            mainTexture: "bone"};
+            g_figure = new Model(new Transform(), OBJLoader.getMesh(gl, "skeleton", "ressources/skeleton.obj"), material);
+
+            g_grid = new GridAxis(gl);
+
+            // load an play the music using howler.js
+            // https://howlerjs.com/
+            // documentation: https://github.com/goldfire/howler.js#documentation
+            music = new Howl({
+                src: ['ressources/AndrewGold-SpookyScarySkeletons.mp3'],
+                html5: true // use streaming audio if possible
+            });
+            music.play();
+
+            renderLoop = new RenderLoop(draw).start();
+        }
+
+        function draw(deltaTime){
+            Input.update();
+            let bpm = 77; // the skeleton song has 77 beats per minute
+            let bps = bpm/60.0; // this many beats per second
+            let beatDuration = 1.0/bps; // one beat lasts this long
+
+            timer += deltaTime; // count up timer variable
+            if(timer > beatDuration){ // do stuff every beat
+                timer = Time.time % beatDuration; // we can't simply set it to 0 here, because we will accumulate error.
+                                        // deltaTime is not 100% accurate (eg. with 60 fps 60*deltaTime != 1.00)
+                                        // but maybe 0.98 or 1.01.
+                                        // Since we work with sound and want a consistent event at exact intervals,
+                                        // we have to use the Time.time to decide when to act.
+                let r = Math.random();
+                let g = Math.random();
+                let b = Math.random();
+                gl.clearColor(r, g, b, 1); // set clear color (RGBA)
+            }
+
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            g_cameraController.update();
+
+            // scale y by 0.1 up and down bps times a second.
+            g_figure.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+            g_figure.update();
+            g_figure.render(g_standardShader, g_camera, g_lightingData);
+
+            g_grid.render(g_gridShader, g_camera);
+        }
+
+        // this will be executed when the startbutton is pressed, run the program and delete the button
+        function load(){
+            var button = document.getElementById("startbutton");
+            button.remove();
+            setup();
+            init();
+        }
+    </script>
+</body>
+</html>
