@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Hello WebGL</title>
+    <!-- <script type="vertex-shader" id="standardVertexShader">
+        attribute vec3 a_position; // the position of each vertex
+        attribute vec3 a_normal;   // the surface normal of each vertex
+        attribute vec2 a_texcoord; // texture coordinates of each vertex
+
+        uniform mat4 u_matrixM; // the model matrix of this object
+        uniform mat4 u_matrixV; // the view matrix of the camera
+        uniform mat4 u_matrixP; // the projection matrix of the camera
+
+        // inverse transpose to change normals into world space, this will make sure
+        // our normals are not stretched when the object is scaled.
+        uniform mat3 u_matrixInvTransM;
+
+        uniform vec3 u_viewPos;
+
+        uniform vec3 u_spotlight; // spotlight position
+        uniform vec3 u_spotlight2;
+
+        varying vec3 v_normal;    // normal to forward to the fragment shader
+        varying vec2 v_texcoord;  // texture coordinates to forward to the fragment shader
+        varying vec3 v_surfaceToLight;
+        varying vec3 v_surfaceToLight2;
+        varying vec3 v_surfaceToView;
+
+        void main() {
+            v_normal = normalize(u_matrixInvTransM * a_normal); // set normal data for fragment shader
+            v_texcoord = a_texcoord; // set texture coordinates for fragment shader
+            // calculate new position
+            gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
+            // calc surfaceToLight and surfaceToView
+            vec3 world_pos = (u_matrixM * vec4(a_position, 1)).xyz;
+            v_surfaceToLight = u_spotlight - world_pos;
+            v_surfaceToLight2 = u_spotlight2 - world_pos;
+            v_surfaceToView = u_viewPos - world_pos;
+        }
+
+    </script> -->
+    <!-- <script type="fragment-shader" id="standardFragmentShader">
+        precision highp float; //float precision settings
+
+        uniform vec4 u_tint;            // the tint color of this object
+        uniform vec3 u_directionalLight;// directional light in world space
+        uniform vec3 u_directionalColor;// light color
+        uniform vec3 u_ambientColor;    // intensity of ambient light
+
+        uniform sampler2D u_mainTex;    // main texture to use for color lookup
+
+        varying vec3 v_normal;  // normal from the vertex shader
+        varying vec2 v_texcoord;// texture coordinates from the vertex shader
+
+        void main(void){
+            vec3 normal = normalize(v_normal);
+
+            // lambertian diffuse lighting
+            float diffuse = max(0.0, dot(normal, -u_directionalLight));
+            vec3 diffuseColor = u_directionalColor * diffuse;
+
+            // combine lighting from directional and ambient light
+            vec3 ambientDiffuse = u_ambientColor + diffuseColor;
+            // make sure light intensity does not exceed 1.0
+            ambientDiffuse = clamp(ambientDiffuse, vec3(0.0,0.0,0.0), vec3(1.0,1.0,1.0));
+
+            // texture and tint color
+            vec4 textureColor = texture2D(u_mainTex, v_texcoord); // lookup color from texture
+            vec4 combinedColor = textureColor * u_tint;       // blend texture and tint color
+
+            // use multiplicative color blending to combine lighting and color
+            gl_FragColor = vec4(ambientDiffuse * combinedColor.xyz, combinedColor.a);
+            //gl_FragColor = vec4(v_texcoord, 0, 1);
+        }
+
+    </script> -->
+
+    <script type="vertex-shader" id="standardVertexShader">
+            attribute vec3 a_position; // the position of each vertex
+            attribute vec3 a_normal;   // the surface normal of each vertex
+            attribute vec2 a_texcoord;
+
+            uniform mat4 u_matrixM; // the model matrix of this object
+            uniform mat4 u_matrixV; // the view matrix of the camera
+            uniform mat4 u_matrixP; // the projection matrix of the camera
+
+            // inverse transpose to change normals into world space, this will make sure
+            // our normals are not stretched when the object is scaled.
+            uniform mat3 u_matrixInvTransM;
+            uniform vec3 u_viewPos;    // position of the camera in world space
+            uniform vec3 u_spotlight; // spotlight position
+            uniform vec3 u_spotlight2;
+
+            // forward to the fragment shader
+            varying vec3 v_normal;
+            varying vec2 v_texcoord;
+            varying vec3 v_surfaceToLight;
+            varying vec3 v_surfaceToLight2;
+            varying vec3 v_surfaceToView;
+
+            void main() {
+                v_normal = normalize(u_matrixInvTransM * a_normal); // set normal data for fragment shader
+                v_texcoord = a_texcoord;
+
+                // calculate new position
+                gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
+
+                // calc surfaceToLight and surfaceToView
+                vec3 world_pos = (u_matrixM * vec4(a_position, 1)).xyz;
+                v_surfaceToLight = u_spotlight - world_pos;
+                v_surfaceToLight2 = u_spotlight2 - world_pos;
+                v_surfaceToView = u_viewPos - world_pos;
+            }
+
+        </script>
+        <script type="fragment-shader" id="standardFragmentShader">
+            precision highp float; //float precision settings
+
+            uniform vec4 u_tint;            // the tint color of this object
+
+            // directional lighting
+            uniform vec3 u_directionalLight;// directional light in world space
+            uniform vec3 u_directionalColor;// light color
+            uniform vec3 u_ambientColor;    // intensity of ambient light
+
+            // spotlight
+            uniform vec3 u_spotlightDir;
+            uniform vec3 u_spotlightColor;
+
+            uniform vec3 u_spotlightDir2;
+            uniform vec3 u_spotlightColor2;
+            uniform float u_limit;          // bounds of the spotlight
+
+            varying vec3 v_normal;  // normal from the vertex shader
+            varying vec3 v_surfaceToLight;
+            varying vec3 v_surfaceToView;
+            varying vec3 v_surfaceToLight2;
+
+            // main texture sampler
+            uniform sampler2D u_mainTex;    // texture
+            varying vec2 v_texcoord; // vector for texture coords
+
+            void main(void){
+                vec3 normal = normalize(v_normal);
+
+                // lambertian diffuse lighting
+                float diffuse = max(0.0, dot(normal, -u_directionalLight));
+                vec3 diffuseColor = u_directionalColor * diffuse;
+
+                // spotlighting
+                vec3 surfaceToLightDirection = normalize(v_surfaceToLight);
+                vec3 surfaceToViewDirection = normalize(v_surfaceToView);
+                vec3 halfVec = normalize(surfaceToLightDirection + surfaceToViewDirection);
+                float dotFromDirection = dot(surfaceToLightDirection, -u_spotlightDir);
+                // check if within the spotlight bounds
+                float spotlightMag = 0.0;
+                if(dotFromDirection >= u_limit)
+                {
+                    spotlightMag = dot(normal, surfaceToLightDirection);
+                    // do spec if desired here
+                }
+                vec3 spotlight = u_spotlightColor * spotlightMag;
+
+                vec3 surfaceToLightDirection2 = normalize(v_surfaceToLight2);
+                vec3 halfVec2 = normalize(surfaceToLightDirection2 + surfaceToViewDirection);
+                float dotFromDirection2 = dot(surfaceToLightDirection2, -u_spotlightDir2);
+                float spotlightMag2 = 0.0;
+                if(dotFromDirection2 >= u_limit)
+                {
+                    spotlightMag2 = dot(normal, surfaceToLightDirection2);
+                    // do spec if desired here
+                }
+                vec3 spotlight2 = u_spotlightColor2 * spotlightMag2;
+
+
+                // combine lighting from directional and ambient light
+                vec3 ambientDiffuse = diffuseColor;
+                if(spotlightMag > 0.0)
+                {
+                  ambientDiffuse = spotlight2;
+                }
+                if (spotlightMag2 > 0.0) {
+                  ambientDiffuse = spotlight2;
+                }
+                // if (spotlightMag > 0.0 && spotlightMag2 > 0.0) {
+                //   ambientDiffuse = spotlight + spotlight2;
+                // }
+                ambientDiffuse += u_ambientColor;
+
+                // make sure light intensity does not exceed 1.0
+                ambientDiffuse = clamp(ambientDiffuse, vec3(0.0,0.0,0.0), vec3(1.0,1.0,1.0));
+
+                // texture and tint color
+                vec4 textureColor = texture2D(u_mainTex, v_texcoord);
+                vec4 combinedColor = textureColor * u_tint; //textureColor * u_tint
+
+
+                // TODO: use multiplicative color blending to combine lighting and color
+                gl_FragColor = vec4(ambientDiffuse * combinedColor.rgb, combinedColor.a);
+                //gl_FragColor = vec4(v_texcoord, 0, 1);
+            }
+
+        </script>
+
+
+
+
+    <script type="vertex-shader" id="gridVertexShader">
+        // a shader that uses vertex colors to render our axis grid
+        attribute vec3 a_position; // the position of each vertex
+        attribute vec3 a_vertexcolor; // the color of each vertex
+
+        uniform mat4 u_matrixM; // the model matrix of this object
+        uniform mat4 u_matrixV; // the view matrix of the camera
+        uniform mat4 u_matrixP; // the perspective matrix of the camera
+
+        varying vec3 vertexcolor; // varying to bring vertexcolor to the fragment shader
+        void main() {
+            //gl_Position = u_matrixM * u_matrixV * u_matrixP * vec4 (a_position, 1);
+            gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
+            vertexcolor = a_vertexcolor;
+        }
+    </script>
+    <script type="fragment-shader" id="gridFragmentShader">
+        // a shader that uses vertex colors to render our axis grid
+        precision highp float; //float precision settings
+        varying vec3 vertexcolor; // vertexcolor from vertex shader
+
+        void main()
+        {
+            gl_FragColor = vec4(vertexcolor, 1);
+        }
+    </script>
+</head>
+
+<body>
+    <canvas width="0" height="0" id="webgl-canvas"></canvas>
+
+    <script src="webgl-debug.js"></script>
+    <script src="math.js"></script>
+    <script src="gl-utils.js"></script>
+    <script src="transform.js"></script>
+    <script src="shader.js"></script>
+    <script src="renderloop.js"></script>
+    <script src="model.js"></script>
+    <script src="primitives.js"></script>
+    <script src="input.js"></script>
+    <script src="camera.js"></script>
+    <script src="grid.js"></script>
+    <script src="objparser.js"></script>
+    <script src="howler.js"></script>
+
+    <button id="startbutton" width="300" height="300" onclick="load()" style="
+        background-color: #111111;
+        border: none; color: white; padding: 50px 50px; text-align: center;
+        text-decoration: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        font-size: 50px;">Click here to start the partyyyyyyy</button>
+
+    <script type="text/javascript">
+        "use strict"; // use strict javascript compiling
+
+        //--------------------------------------------------
+        // Global Cashes
+        //--------------------------------------------------
+        var MeshCache = {}; // here all mesh objects are stored, see GLUtils.createMesh() for details on how a mesh is added.
+        var TextureCache = {}; // here all texture objects are stored, see GLUtils.loadTexture() for details on how a texture is added.
+
+        // -----------------------------------------
+        // Global variables
+        // -----------------------------------------
+        var gl;
+        var canvas;
+        var renderLoop;
+
+        var g_standardShader;
+
+        var g_camera;
+        var g_cameraController;
+
+        var g_discofloor = []; // list of cubes
+
+        var g_figure;
+        var g_figureLeft;
+        var g_figureRight;
+
+        var g_figure2;
+        var g_figureLeft2;
+        var g_figureRight2;
+
+        var g_stage;
+        var g_prop1;
+
+        // a basic grid with x, y, and z axis, to visualize our space.
+        var g_gridShader; // shader to render the grid
+        var g_grid; // the grid model
+
+        var timer = 0;
+        var music;
+
+        // lighting
+        var g_lightingData = {
+            directionalLight: new Vector3(-1, -1, -0.5).normalize(), // light direction
+            directionalColor: new Vector3(1.0, 1.0, 1.0), // light color by default white
+            ambientColor: new Vector3(0.1, 0.1, 0.1), // dark gray
+            spotlight: new Vector3(0.0, 0.0, 1.0).normalize(),
+            spotlight_dir: new Vector3(1.0, 0.0, -1.0).normalize(),
+            spotlight_color: new Vector3(1.0, 0.0, 0.0),
+            spotlight_limit: 0.9,
+            spotlight2: new Vector3(0.0, 0.0, 1.0).normalize(),
+            spotlight_dir2: new Vector3(-1.0, 0.0, -1.0).normalize(),
+            spotlight_color2: new Vector3(1.0, 0.0, 0.0)
+        }
+
+        function setup() {
+            canvas = document.getElementById("webgl-canvas");
+            gl = GLUtils.createWebGLInstance(canvas, true);
+            //gl.clearColor(0.2, 0.1, 0.5, 1); // set purple-ish color background
+            gl.clearColor(1, 1, 1, 1); // set clear color (RGBA)
+            gl.fitScreen();
+            gl.enable(gl.DEPTH_TEST);
+            gl.depthFunc(gl.LEQUAL);
+            Input.initialize(canvas);
+        }
+
+        function init() {
+            g_standardShader = new Shader(gl, GLUtils.getDomShaderSrc("standardVertexShader"),
+                GLUtils.getDomShaderSrc("standardFragmentShader"));
+            g_gridShader = new Shader(gl, GLUtils.getDomShaderSrc("gridVertexShader"),
+                GLUtils.getDomShaderSrc("gridFragmentShader"));
+
+            g_camera = new PerspectiveCamera(gl, 45, 0.1, 1000, canvas.width / canvas.height);
+            g_cameraController = new OrbiterCameraController(canvas, g_camera);
+            g_cameraController.target.set(0, 1.5, 0);
+
+            GLUtils.loadTexture(gl, "bone", "ressources/bone.png");
+
+            GLUtils.loadTexture(gl, "gummyRed", "ressources/jellyRed.png");
+            GLUtils.loadTexture(gl, "gummyGreen", "ressources/jellyGreen.png");
+            GLUtils.loadTexture(gl, "gummyOrange", "ressources/jellyOrange.png");
+            //GLUtils.loadTexture(gl, "gummy", "ressources/jelly.png");
+            GLUtils.loadTexture(gl, "stage", "ressources/neon8.png");
+
+            let materialRed = {
+                tint: [1, 1, 1, 1],
+                mainTexture: "gummyRed"
+            };
+            let materialGreen = {
+                tint: [0, 1, 0, 1],
+                mainTexture: "bone"
+            };
+            let materialOrange = {
+                tint: [0.8, 0.4, 0, 1],
+                mainTexture: "bone"
+            };
+            let materialStage = {
+                tint: [1, 1, 1, 1],
+                mainTexture: "stage"
+            };
+
+
+            // make disco floor
+            let cube_mesh = Primitives.Cube.getMesh(gl);
+            let temp_material = {tint: [1.0, 1.0, 1.0, 1.0]} // temp white
+            for (let i = -1; i < 2; i++)
+            {
+                for(let j = -1; j < 2; j++)
+                {
+                    let new_cube = new Model(new Transform(), cube_mesh, temp_material);
+                    new_cube.transform.position.set(2*i, 0.0 , 2*j);
+                    new_cube.transform.scale.set(2.0, 0.1, 2.0);
+                    g_discofloor.push(new_cube);
+                }
+            }
+
+            g_prop1 = new Model(new Transform(), OBJLoader.getMesh(gl, "ressources/box/box.obj"), materialRed);
+
+            g_figure = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
+            g_figure2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
+
+            g_grid = new GridAxis(gl);
+
+            g_stage = new Model(new Transform(), OBJLoader.getMesh(gl, "theStage", "ressources/stage.obj"), materialStage);
+
+            g_figureRight = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
+            g_figureRight2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
+            //g_figureRight.transform.position.set(30, -30, 0);
+
+            g_figureLeft = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
+            g_figureLeft2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
+
+            // load an play the music using howler.js
+            // https://howlerjs.com/
+            // documentation: https://github.com/goldfire/howler.js#documentation
+            music = new Howl({
+                src: ['ressources/gummyBearSong.mp3'],
+                html5: true // use streaming audio if possible
+            });
+            music.play();
+
+            renderLoop = new RenderLoop(draw).start();
+        }
+
+        function draw(deltaTime) {
+            Input.update();
+            let bpm = 128/2; // the gummy bear song has 128 beats per minute
+            let bps = bpm / 60.0; // this many beats per second
+            let beatDuration = 1.0 / bps; // one beat lasts this long
+
+            timer += deltaTime; // count up timer variable
+            if (timer > beatDuration) { // do stuff every beat
+                timer = Time.time % beatDuration; // we can't simply set it to 0 here, because we will accumulate error.
+                // deltaTime is not 100% accurate (eg. with 60 fps 60*deltaTime != 1.00)
+                // but maybe 0.98 or 1.01.
+                // Since we work with sound and want a consistent event at exact intervals,
+                // we have to use the Time.time to decide when to act.
+                let r = Math.random();
+                let g = Math.random();
+                let b = Math.random();
+                //gl.clearColor(r, g, b, 1); // set random color background
+                gl.clearColor(1, 1, 1, 1); // set clear color (RGBA)
+            }
+
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            g_cameraController.update();
+
+            Matrix4x4.transformV3(Matrix4x4.rotationMatrixZ(deltaTime*75),
+                 g_lightingData.spotlight_dir, g_lightingData.spotlight_dir);
+            Matrix4x4.transformV3(Matrix4x4.rotationMatrixZ(-deltaTime*75),
+                 g_lightingData.spotlight_dir2, g_lightingData.spotlight_dir2);
+
+            // chose color for floor - change to if beat change odd boxes to rand color
+//             for (let i = 0; i < g_discofloor.length; i++)
+//             {
+//                 if(i % 2 == 0)
+//                 {
+//                     g_discofloor[i].material.tint = [0, 0, 0, 1];
+//                 } else {
+//                     g_discofloor[i].material.tint = [1, 1, 1, 1];
+//                 }
+//
+//                 g_discofloor[i].update();
+//                 g_discofloor[i].render(g_standardShader, g_camera, g_lightingData);
+//             }
+
+
+
+
+
+            // scale y by 0.1 up and down bps times a second.
+            g_figure.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+            g_figure.update();
+            g_figure.render(g_standardShader, g_camera, g_lightingData);
+
+
+            g_figure2.transform.position.set(0, 0, -1);
+            g_figure2.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+            g_figure2.update();
+            g_figure2.render(g_standardShader, g_camera, g_lightingData);
+
+            //if(timer>7){
+              g_figureRight.transform.position.set(-1, 0, 0);
+              g_figureRight.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * 2*bps) * 0.1;
+              g_figureRight.update();
+              g_figureRight.render(g_standardShader, g_camera, g_lightingData);
+
+
+              g_figureRight2.transform.position.set(-1, 0, -1);
+              g_figureRight2.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * 2*bps) * 0.1;
+              g_figureRight2.update();
+              g_figureRight2.render(g_standardShader, g_camera, g_lightingData);
+
+              g_figureLeft.transform.position.set(1, 0, 0);
+              g_figureLeft.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * 2*bps) * 0.1;
+              g_figureLeft.update();
+              g_figureLeft.render(g_standardShader, g_camera, g_lightingData);
+
+              g_figureLeft2.transform.position.set(1, 0, -1);
+              g_figureLeft2.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * 2*bps) * 0.1;
+              g_figureLeft2.update();
+              g_figureLeft2.render(g_standardShader, g_camera, g_lightingData);
+
+            //}
+
+
+
+            // g_stage.transform.scale.x = 0.5;
+            // g_stage.transform.scale.y = 0.5;
+            // g_stage.transform.scale.z = 0.5;
+            g_stage.transform.position.set(0,-2.15, -2);
+            g_stage.update();
+            g_stage.render(g_standardShader, g_camera, g_lightingData);
+
+            //g_prop1.update();
+            //g_prop1.render(g_standardShader, g_camera, g_lightingData);
+
+            //g_grid.render(g_gridShader, g_camera);
+        }
+
+        // this will be executed when the startbutton is pressed, run the program and delete the button
+        function load() {
+            var button = document.getElementById("startbutton");
+            button.remove();
+            setup();
+            init();
+        }
+    </script>
+</body>
+
+</html>
