@@ -179,14 +179,14 @@
                 vec3 ambientDiffuse = diffuseColor;
                 if(spotlightMag > 0.0)
                 {
-                  ambientDiffuse = spotlight2;
+                  ambientDiffuse = spotlight;
                 }
                 if (spotlightMag2 > 0.0) {
                   ambientDiffuse = spotlight2;
                 }
-                // if (spotlightMag > 0.0 && spotlightMag2 > 0.0) {
-                //   ambientDiffuse = spotlight + spotlight2;
-                // }
+                if (spotlightMag > 0.0 && spotlightMag2 > 0.0) {
+                  ambientDiffuse = spotlight + spotlight2;
+                }
                 ambientDiffuse += u_ambientColor;
 
                 // make sure light intensity does not exceed 1.0
@@ -289,14 +289,31 @@
         var g_figureLeft2;
         var g_figureRight2;
 
+        var g_figure3;
+        var g_figureLeft3;
+        var g_figureRight3;
+
+        var g_figure4;
+        var g_figureLeft4;
+        var g_figureRight4;
+
         var g_stage;
-        var g_prop1;
+
+        var g_bottom;
+        var g_bottom2;
+        var g_bottom3;
+        var g_back;
+        var g_right;
+        var g_left;
 
         // a basic grid with x, y, and z axis, to visualize our space.
         var g_gridShader; // shader to render the grid
         var g_grid; // the grid model
 
         var timer = 0;
+        var timeElapsed = 0;
+        var beatsElapsed = 0;
+        var count = 0;
         var music;
 
         // lighting
@@ -341,6 +358,7 @@
             GLUtils.loadTexture(gl, "gummyOrange", "ressources/jellyOrange.png");
             //GLUtils.loadTexture(gl, "gummy", "ressources/jelly.png");
             GLUtils.loadTexture(gl, "stage", "ressources/neon8.png");
+            GLUtils.loadTexture(gl, "back", "ressources/back.png");
 
             let materialRed = {
                 tint: [1, 1, 1, 1],
@@ -359,6 +377,11 @@
                 mainTexture: "stage"
             };
 
+            let backgroundMaterial = {
+                tint: [1, 1, 1, 1],
+                mainTexture: "back"
+            };
+
 
             // make disco floor
             let cube_mesh = Primitives.Cube.getMesh(gl);
@@ -374,21 +397,33 @@
                 }
             }
 
-            g_prop1 = new Model(new Transform(), OBJLoader.getMesh(gl, "ressources/box/box.obj"), materialRed);
 
             g_figure = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
-            g_figure2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
+            g_figure2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
+            g_figure3 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
+            g_figure4 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
 
             g_grid = new GridAxis(gl);
+
+            g_bottom = new Model(new Transform(), Primitives.Cube.getMesh(gl), materialStage);
+            g_bottom2 = new Model(new Transform(), Primitives.Cube.getMesh(gl), materialStage);
+            g_bottom3 = new Model(new Transform(), Primitives.Cube.getMesh(gl), materialStage);
+
+            g_back = new Model(new Transform(), Primitives.Quad.getMesh(gl), backgroundMaterial);
+            g_left = new Model(new Transform(), Primitives.Quad.getMesh(gl), backgroundMaterial);
+            g_right = new Model(new Transform(), Primitives.Quad.getMesh(gl), backgroundMaterial);
 
             g_stage = new Model(new Transform(), OBJLoader.getMesh(gl, "theStage", "ressources/stage.obj"), materialStage);
 
             g_figureRight = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
-            g_figureRight2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
-            //g_figureRight.transform.position.set(30, -30, 0);
+            g_figureRight2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
+            g_figureRight3 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
+            g_figureRight4 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
 
             g_figureLeft = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
-            g_figureLeft2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
+            g_figureLeft2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
+            g_figureLeft3 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
+            g_figureLeft4 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
 
             // load an play the music using howler.js
             // https://howlerjs.com/
@@ -418,8 +453,9 @@
                 let r = Math.random();
                 let g = Math.random();
                 let b = Math.random();
-                //gl.clearColor(r, g, b, 1); // set random color background
-                gl.clearColor(1, 1, 1, 1); // set clear color (RGBA)
+                gl.clearColor(r, g, 1, 1); // set random color background
+                //gl.clearColor(1, 1, 1, 1); // set clear color (RGBA)
+                beatsElapsed+=1;
             }
 
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -430,7 +466,7 @@
             Matrix4x4.transformV3(Matrix4x4.rotationMatrixZ(-deltaTime*75),
                  g_lightingData.spotlight_dir2, g_lightingData.spotlight_dir2);
 
-            // chose color for floor - change to if beat change odd boxes to rand color
+            //chose color for floor - change to if beat change odd boxes to rand color
 //             for (let i = 0; i < g_discofloor.length; i++)
 //             {
 //                 if(i % 2 == 0)
@@ -444,6 +480,61 @@
 //                 g_discofloor[i].render(g_standardShader, g_camera, g_lightingData);
 //             }
 
+            g_bottom.transform.scale.y = 0.2; // height
+            g_bottom.transform.scale.x = 4; // length
+            g_bottom.transform.scale.z = 4; // width
+
+            g_bottom2.transform.position.set(0, -.2, 0);
+            g_bottom2.transform.scale.y = 0.2; // height
+            g_bottom2.transform.scale.x = 7; // length
+            g_bottom2.transform.scale.z = 7; // width
+
+            g_back.transform.position.set(0, 3.2, -3.5);
+            g_back.transform.scale.x = 7;
+            g_back.transform.scale.y = 7;
+            g_back.transform.scale.z = 7;
+
+            g_left.transform.rotation.set(0, 90, 0);
+            g_left.transform.position.set(-3.5, 3.2, 0);
+            g_left.transform.scale.x = 7;
+            g_left.transform.scale.y = 7;
+            g_left.transform.scale.z = 7;
+
+
+            g_right.transform.rotation.set(0, -90, 0);
+            g_right.transform.position.set(3.5, 3.2, 0);
+            g_right.transform.scale.x = 7;
+            g_right.transform.scale.y = 7;
+            g_right.transform.scale.z = 7;
+
+
+
+            g_bottom.update();
+            g_bottom.render(g_standardShader, g_camera, g_lightingData);
+
+            g_bottom2.update();
+            g_bottom2.render(g_standardShader, g_camera, g_lightingData);
+
+            g_back.update();
+            g_back.render(g_standardShader, g_camera, g_lightingData);
+
+            g_left.update();
+            g_left.render(g_standardShader, g_camera, g_lightingData);
+
+            g_right.update();
+            g_right.render(g_standardShader, g_camera, g_lightingData);
+
+            g_figureRight.transform.position.set(-1, 0, 0);
+            g_figureLeft.transform.position.set(1, 0, 0);
+
+            g_figure2.transform.position.set(0, 0, -1);
+            g_figureRight2.transform.position.set(-1, 0, -1);
+            g_figureLeft2.transform.position.set(1, 0, -1);
+
+
+            g_figure3.transform.position.set(0, 0, 1);
+            g_figureRight3.transform.position.set(-1, 0, 1);
+            g_figureLeft3.transform.position.set(1, 0, 1);
 
 
 
@@ -453,44 +544,85 @@
             g_figure.update();
             g_figure.render(g_standardShader, g_camera, g_lightingData);
 
+            if(timeElapsed>7.27){
 
-            g_figure2.transform.position.set(0, 0, -1);
-            g_figure2.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
-            g_figure2.update();
-            g_figure2.render(g_standardShader, g_camera, g_lightingData);
-
-            //if(timer>7){
-              g_figureRight.transform.position.set(-1, 0, 0);
               g_figureRight.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * 2*bps) * 0.1;
               g_figureRight.update();
               g_figureRight.render(g_standardShader, g_camera, g_lightingData);
 
 
-              g_figureRight2.transform.position.set(-1, 0, -1);
+              g_figureLeft.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * 2*bps) * 0.1;
+              g_figureLeft.update();
+              g_figureLeft.render(g_standardShader, g_camera, g_lightingData);
+            }
+
+            if(timeElapsed>15.46){
+
+              g_figure2.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figure2.update();
+              g_figure2.render(g_standardShader, g_camera, g_lightingData);
+
+
               g_figureRight2.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * 2*bps) * 0.1;
               g_figureRight2.update();
               g_figureRight2.render(g_standardShader, g_camera, g_lightingData);
 
-              g_figureLeft.transform.position.set(1, 0, 0);
-              g_figureLeft.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * 2*bps) * 0.1;
-              g_figureLeft.update();
-              g_figureLeft.render(g_standardShader, g_camera, g_lightingData);
 
-              g_figureLeft2.transform.position.set(1, 0, -1);
               g_figureLeft2.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * 2*bps) * 0.1;
               g_figureLeft2.update();
               g_figureLeft2.render(g_standardShader, g_camera, g_lightingData);
+            }
 
-            //}
+            if((beatsElapsed>23 && beatsElapsed<32)){
+              g_figure3.transform.scale.x = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figure3.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figure3.transform.scale.z = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figure3.update();
+              g_figure3.render(g_standardShader, g_camera, g_lightingData);
 
 
+              g_figureRight3.transform.scale.x = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureRight3.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureRight3.transform.scale.z = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureRight3.update();
+              g_figureRight3.render(g_standardShader, g_camera, g_lightingData);
 
-            // g_stage.transform.scale.x = 0.5;
-            // g_stage.transform.scale.y = 0.5;
-            // g_stage.transform.scale.z = 0.5;
-            g_stage.transform.position.set(0,-2.15, -2);
-            g_stage.update();
-            g_stage.render(g_standardShader, g_camera, g_lightingData);
+
+              g_figureLeft3.transform.scale.x = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureLeft3.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureLeft3.transform.scale.z = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureLeft3.update();
+              g_figureLeft3.render(g_standardShader, g_camera, g_lightingData);
+
+            } else if(beatsElapsed>31){
+              //g_figure3.transform.position.x = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figure3.transform.position.set(0, 1.5, 1);
+              g_figure3.transform.rotation.set(30*timeElapsed, 10*timeElapsed, 20*timeElapsed);
+              g_figure3.update();
+              g_figure3.render(g_standardShader, g_camera, g_lightingData);
+
+              g_figureRight3.transform.position.set(-2, 2, 0);
+              g_figureRight3.transform.rotation.set(10*timeElapsed, 30*timeElapsed, 20*timeElapsed);
+              g_figureRight3.update();
+              g_figureRight3.render(g_standardShader, g_camera, g_lightingData);
+
+              g_figureLeft3.transform.position.set(1, 2.5, -0.5);
+              g_figureLeft3.transform.rotation.set(10*timeElapsed, 20*timeElapsed, 30*timeElapsed);
+              g_figureLeft3.update();
+              g_figureLeft3.render(g_standardShader, g_camera, g_lightingData);
+
+            }
+
+
+            if(count>7){
+              count=0;
+            }
+
+            timeElapsed += deltaTime;
+
+            //g_stage.transform.position.set(0,-2.15, -2);
+            //g_stage.update();
+            //g_stage.render(g_standardShader, g_camera, g_lightingData);
 
             //g_prop1.update();
             //g_prop1.render(g_standardShader, g_camera, g_lightingData);
