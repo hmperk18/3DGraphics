@@ -4,78 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <title>Hello WebGL</title>
-    <!-- <script type="vertex-shader" id="standardVertexShader">
-        attribute vec3 a_position; // the position of each vertex
-        attribute vec3 a_normal;   // the surface normal of each vertex
-        attribute vec2 a_texcoord; // texture coordinates of each vertex
 
-        uniform mat4 u_matrixM; // the model matrix of this object
-        uniform mat4 u_matrixV; // the view matrix of the camera
-        uniform mat4 u_matrixP; // the projection matrix of the camera
-
-        // inverse transpose to change normals into world space, this will make sure
-        // our normals are not stretched when the object is scaled.
-        uniform mat3 u_matrixInvTransM;
-
-        uniform vec3 u_viewPos;
-
-        uniform vec3 u_spotlight; // spotlight position
-        uniform vec3 u_spotlight2;
-
-        varying vec3 v_normal;    // normal to forward to the fragment shader
-        varying vec2 v_texcoord;  // texture coordinates to forward to the fragment shader
-        varying vec3 v_surfaceToLight;
-        varying vec3 v_surfaceToLight2;
-        varying vec3 v_surfaceToView;
-
-        void main() {
-            v_normal = normalize(u_matrixInvTransM * a_normal); // set normal data for fragment shader
-            v_texcoord = a_texcoord; // set texture coordinates for fragment shader
-            // calculate new position
-            gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
-            // calc surfaceToLight and surfaceToView
-            vec3 world_pos = (u_matrixM * vec4(a_position, 1)).xyz;
-            v_surfaceToLight = u_spotlight - world_pos;
-            v_surfaceToLight2 = u_spotlight2 - world_pos;
-            v_surfaceToView = u_viewPos - world_pos;
-        }
-
-    </script> -->
-    <!-- <script type="fragment-shader" id="standardFragmentShader">
-        precision highp float; //float precision settings
-
-        uniform vec4 u_tint;            // the tint color of this object
-        uniform vec3 u_directionalLight;// directional light in world space
-        uniform vec3 u_directionalColor;// light color
-        uniform vec3 u_ambientColor;    // intensity of ambient light
-
-        uniform sampler2D u_mainTex;    // main texture to use for color lookup
-
-        varying vec3 v_normal;  // normal from the vertex shader
-        varying vec2 v_texcoord;// texture coordinates from the vertex shader
-
-        void main(void){
-            vec3 normal = normalize(v_normal);
-
-            // lambertian diffuse lighting
-            float diffuse = max(0.0, dot(normal, -u_directionalLight));
-            vec3 diffuseColor = u_directionalColor * diffuse;
-
-            // combine lighting from directional and ambient light
-            vec3 ambientDiffuse = u_ambientColor + diffuseColor;
-            // make sure light intensity does not exceed 1.0
-            ambientDiffuse = clamp(ambientDiffuse, vec3(0.0,0.0,0.0), vec3(1.0,1.0,1.0));
-
-            // texture and tint color
-            vec4 textureColor = texture2D(u_mainTex, v_texcoord); // lookup color from texture
-            vec4 combinedColor = textureColor * u_tint;       // blend texture and tint color
-
-            // use multiplicative color blending to combine lighting and color
-            gl_FragColor = vec4(ambientDiffuse * combinedColor.xyz, combinedColor.a);
-            //gl_FragColor = vec4(v_texcoord, 0, 1);
-        }
-
-    </script> -->
 
     <script type="vertex-shader" id="standardVertexShader">
             attribute vec3 a_position; // the position of each vertex
@@ -293,9 +222,6 @@
         var g_figureLeft3;
         var g_figureRight3;
 
-        var g_figure4;
-        var g_figureLeft4;
-        var g_figureRight4;
 
         var g_stage;
 
@@ -327,7 +253,7 @@
             spotlight_limit: 0.9,
             spotlight2: new Vector3(0.0, 0.0, 1.0).normalize(),
             spotlight_dir2: new Vector3(-1.0, 0.0, -1.0).normalize(),
-            spotlight_color2: new Vector3(1.0, 0.0, 0.0)
+            spotlight_color2: new Vector3(0.0, 0.0, 1.0)
         }
 
         function setup() {
@@ -401,7 +327,6 @@
             g_figure = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
             g_figure2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
             g_figure3 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
-            g_figure4 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
 
             g_grid = new GridAxis(gl);
 
@@ -418,12 +343,10 @@
             g_figureRight = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
             g_figureRight2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
             g_figureRight3 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
-            g_figureRight4 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
 
             g_figureLeft = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialGreen);
             g_figureLeft2 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialRed);
             g_figureLeft3 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
-            g_figureLeft4 = new Model(new Transform(), OBJLoader.getMesh(gl, "gummyBear", "ressources/smallBear.obj"), materialOrange);
 
             // load an play the music using howler.js
             // https://howlerjs.com/
@@ -598,16 +521,25 @@
               //g_figure3.transform.position.x = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
               g_figure3.transform.position.set(0, 1.5, 1);
               g_figure3.transform.rotation.set(30*timeElapsed, 10*timeElapsed, 20*timeElapsed);
+              g_figure3.transform.scale.x = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figure3.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figure3.transform.scale.z = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
               g_figure3.update();
               g_figure3.render(g_standardShader, g_camera, g_lightingData);
 
               g_figureRight3.transform.position.set(-2, 2, 0);
               g_figureRight3.transform.rotation.set(10*timeElapsed, 30*timeElapsed, 20*timeElapsed);
+              g_figureRight3.transform.scale.x = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureRight3.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureRight3.transform.scale.z = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
               g_figureRight3.update();
               g_figureRight3.render(g_standardShader, g_camera, g_lightingData);
 
               g_figureLeft3.transform.position.set(1, 2.5, -0.5);
               g_figureLeft3.transform.rotation.set(10*timeElapsed, 20*timeElapsed, 30*timeElapsed);
+              g_figureLeft3.transform.scale.x = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureLeft3.transform.scale.y = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
+              g_figureLeft3.transform.scale.z = 1 + Math.sin((Time.time * Math.PI * 2) * bps) * 0.1;
               g_figureLeft3.update();
               g_figureLeft3.render(g_standardShader, g_camera, g_lightingData);
 
