@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Hello WebGL</title>
+    <script type="vertex-shader" id="standardVertexShader">
+		attribute vec3 a_position; // the position of each vertex
+        attribute vec3 a_normal;   // the surface normal of each vertex
+
+        uniform mat4 u_matrixM; // the model matrix of this object
+        uniform mat4 u_matrixV; // the view matrix of the camera
+        uniform mat4 u_matrixP; // the projection matrix of the camera
+
+        // inverse transpose to change normals into world space, this will make sure
+        // our normals are not stretched when the object is scaled.
+        uniform mat3 u_matrixInvTransM;
+
+        varying vec3 v_normal; // normal to forward to the fragment shader
+
+        void main() {
+            // TODO: adjust normal using u_matrixInvTransM and pass it to the fragment shaders as v_normal
+            // COMPLETED
+            //v_normal = a_normal; // set normal data for fragment shader
+            v_normal = normalize(u_matrixInvTransM*a_normal);
+
+            // calculate new position
+            gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
+        }
+    </script>
+
+    <script type="fragment-shader" id="standardFragmentShader">
+        precision highp float; //float precision settings
+
+        uniform vec4 u_tint;   // the tint color of this object
+
+        varying vec3 v_normal; // normal from the vertex shader
+
+        void main(void){
+            vec3 normal = v_normal;
+
+            // TODO: to check if the normals are correct, output the normal as color.
+            //gl_FragColor = u_tint;
+            gl_FragColor = vec4(v_normal, 1); //??
+            //gl_FragColor = vec4(abs(v_normal), 1);
+            // the bottom plane should be green, but it's blue so the orientation is not correct
+            // the model has been rotated 90 degrees
+            // move the normals to world space
+
+        }
+
+    </script>
+
+    <script type="vertex-shader" id="directionalLightVertexShader">
+		attribute vec3 a_position; // the position of each vertex
+        attribute vec3 a_normal;   // the surface normal of each vertex
+
+        uniform mat4 u_matrixM; // the model matrix of this object
+        uniform mat4 u_matrixV; // the view matrix of the camera
+        uniform mat4 u_matrixP; // the projection matrix of the camera
+
+        // inverse transpose to change normals into world space, this will make sure
+        // our normals are not stretched when the object is scaled.
+        uniform mat3 u_matrixInvTransM;
+
+        varying vec3 v_normal; // normal to forward to the fragment shader
+
+        void main() {
+            // TODO: adjust normal using u_matrixInvTransM and pass it to the fragment shaders as v_normal
+            // COMPLETE
+            //v_normal = a_normal; // set normal data for fragment shader
+            v_normal = normalize(u_matrixInvTransM*a_normal);
+            // calculate new position
+            gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
+        }
+    </script>
+
+    <script type="fragment-shader" id="directionalLightFragmentShader">
+        precision highp float; //float precision settings
+
+        uniform vec4 u_tint;            // the tint color of this object
+        uniform vec3 u_directionalLight;// directional light in world space
+        uniform vec3 u_directionalColor;// directional light color
+        uniform vec3 u_ambientColor;    // ambient light color
+
+        varying vec3 v_normal; // normal from the vertex shader
+
+        void main(void){
+            vec3 normal = normalize(v_normal);
+
+            // TODO: calculate diffuse lighting
+            // find help here: https://webglfundamentals.org/webgl/lessons/webgl-3d-lighting-directional.html
+            // but make sure to adjust the code to our setup. For example: Our light direction u_directionalLight is not yet reversed.
+            float diffuseIntensity = max(0.0, dot(v_normal, -u_directionalLight));
+            vec3 diffuseColor = u_directionalColor*diffuseIntensity;
+
+            vec3 result = u_ambientColor + diffuseColor;
+
+            result = clamp(result, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
+            result*=u_tint.rgb;
+            //vec3 result = u_tint.rgb; // result should contain the combined color from directional lighting, ambient lighting and tint
+
+            //result = u_tint.rgb;
+            gl_FragColor = vec4(result, u_tint.a); // usually, we keep the alpha from our material (tint),
+                                                   // but since we don't actually do any alpha blending yet, it also does not really matter
+        }
+    </script>
+
+    <script type="vertex-shader" id="pointLightVertexShader">
+		attribute vec3 a_position; // the position of each vertex
+        attribute vec3 a_normal;   // the surface normal of each vertex
+
+        uniform mat4 u_world; // world matrix???
+        uniform mat4 u_matrixM; // the model matrix of this object
+        uniform mat4 u_matrixV; // the view matrix of the camera
+        uniform mat4 u_matrixP; // the projection matrix of the camera
+        // inverse transpose to change normals into world space, this will make sure
+        // our normals are not stretched when the object is scaled.
+        uniform mat3 u_matrixInvTransM;
+        uniform vec3 u_viewPos;    // position of the camera in world space //uniform vec3 u_viewWorldPosition;
+        uniform vec3 u_pointLight; // light position in world space //uniform vec3 u_lightWorldPosition;
+
+        varying vec3 v_normal; // normal to forward to the fragment shader
+        varying vec3 v_surfaceToLight;
+        varying vec3 v_surfaceToView;
+
+
+        void main() {
+            // TODO: adjust normal using u_matrixInvTransM and pass it to the fragment shaders as v_normal
+            // COMPLETE
+            //v_normal = a_normal; // set normal data for fragment shader
+            v_normal = normalize(u_matrixInvTransM*a_normal);
+
+            // calculate new position
+            gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
+
+            // // compute the world position of the surface
+            vec3 surfaceWorldPosition = (u_matrixM * vec4 (a_position, 1)).xyz; // ???use u_world here?
+
+            // TODO: calculate v_surfaceToLight: The direction from the vertex to the light source (u_pointLight)
+            v_surfaceToLight = u_pointLight - surfaceWorldPosition;
+
+            // TODO: calculate v_surfaceToView: The direction from the vertex to the camera (u_viewPos)
+            v_surfaceToView = u_viewPos - surfaceWorldPosition;
+            // TODO: set v_surfaceToLight and v_surfaceToView to pass it to the fragment shader
+            // find help here: https://webglfundamentals.org/webgl/lessons/webgl-3d-lighting-point.html
+
+        }
+    </script>
+
+    <script type="fragment-shader" id="pointLightFragmentShader">
+        precision highp float; //float precision settings
+
+        uniform vec4 u_tint;            // the tint color of this object
+        uniform vec3 u_pointLightColor; // light color of point light
+        uniform float u_shininess;      // spread of specular highliting
+
+        varying vec3 v_normal; // normal from the vertex shader
+        varying vec3 v_surfaceToLight; // pixel position to light source in world space
+        varying vec3 v_surfaceToView;  // pixel position to camera position in world space
+
+        void main(void){
+            vec3 normal = normalize(v_normal);
+
+            vec3 surfaceToLight = normalize(v_surfaceToLight);
+            vec3 surfaceToView = normalize(v_surfaceToView);
+            vec3 halfVector = normalize(surfaceToLight + surfaceToView);
+
+
+            // TODO: calculate the diffse value for the point light
+            float diffuse = 1.0;
+            diffuse = max(0.0, dot(v_normal, -surfaceToLight));
+            vec3 diffuseColor = u_pointLightColor * diffuse;
+
+            gl_FragColor = u_tint;
+
+            // TODO: calculate the specular color for the point light
+            //vec3 specular = vec3(1.0,1.0,1.0);
+            float specular = 0.0;
+            //specular = dot(normal, halfVector);
+
+
+
+            if(diffuse>0.0){
+              specular = pow(dot(normal, halfVector), u_shininess);
+            }
+
+            // find help here: https://webglfundamentals.org/webgl/lessons/webgl-3d-lighting-point.html
+
+            // the point light calculations do not need to account for ambient light, but you can add it if you like.
+
+            //vec3 result = diffuseColor * u_tint.rgb + specular;
+            //vec3 result = diffuse * u_tint.rgb;
+            //gl_FragColor = vec4(result, u_tint.a);
+
+            gl_FragColor.rgb *= diffuseColor;
+            gl_FragColor.rgb += specular;
+
+        }
+    </script>
+
+    <script type="vertex-shader" id="gridVertexShader">
+        // a shader that uses vertex colors to render our axis grid
+        attribute vec3 a_position; // the position of each vertex
+        attribute vec3 a_vertexcolor; // the color of each vertex
+
+        uniform mat4 u_matrixM; // the model matrix of this object
+        uniform mat4 u_matrixV; // the view matrix of the camera
+        uniform mat4 u_matrixP; // the perspective matrix of the camera
+
+        varying vec3 vertexcolor; // varying to bring vertexcolor to the fragment shader
+        void main() {
+            gl_Position = u_matrixP * u_matrixV * u_matrixM * vec4 (a_position, 1);
+            vertexcolor = a_vertexcolor;
+        }
+    </script>
+    <script type="fragment-shader" id="gridFragmentShader">
+        // a shader that uses vertex colors to render our axis grid
+        precision highp float; //float precision settings
+        varying vec3 vertexcolor; // vertexcolor from vertex shader
+
+        void main()
+        {
+            gl_FragColor = vec4(vertexcolor, 1);
+        }
+    </script>
+</head>
+
+<body>
+    <canvas width="500" height="500" id="webgl-canvas"></canvas>
+
+    <script src="webgl-debug.js"></script>
+    <script src="math.js"></script>
+    <script src="gl-utils.js"></script>
+    <script src="transform.js"></script>
+    <script src="shader.js"></script>
+    <script src="renderloop.js"></script>
+    <script src="model.js"></script>
+    <script src="primitives.js"></script>
+    <script src="input.js"></script>
+    <script src="camera.js"></script>
+    <script src="grid.js"></script>
+
+    <script type="text/javascript">
+        "use strict"; // use strict javascript compiling
+
+        //--------------------------------------------------
+        // Global Cashes
+        //--------------------------------------------------
+        var MeshCache = {}; // here all mesh objects are stored, see GLUtils.createMesh() for details on how a mesh is added.
+
+        // -----------------------------------------
+        // Global variables
+        // -----------------------------------------
+        var gl;
+        var canvas;
+        var renderLoop;
+
+        var g_standardShader;
+        var g_directionalLightShader;
+        var g_pointLightShader;
+
+        var g_camera;
+        var g_cameraController;
+
+        var g_pyramid;
+        var g_globe;
+        var g_ground;
+
+        // a basic grid with x, y, and z axis, to visualize our space.
+        var g_gridShader; // shader to render the grid
+        var g_grid; // the grid model
+
+        // lighting
+        var g_lightingData = {
+            directionalLight: new Vector3(-1, -1, -0.5).normalize(), // light direction
+            directionalColor: new Vector3(1.0, 1.0, 1.0), // light color by default white
+            //directionalColor: new Vector3(0.0, 1.0, 0.0), // light color to green
+
+            pointLight: new Vector3(4, 2, 0), // point light position
+            pointLightColor: new Vector3(1.0, 1.0, 1.0), // light color by default white
+
+            ambientColor: new Vector3(0.1, 0.1, 0.1) // dark gray
+            //ambientColor: new Vector3(1.0, 0.0, 0.0) // red
+        }
+
+        function setup() {
+            canvas = document.getElementById("webgl-canvas");
+            gl = GLUtils.createWebGLInstance(canvas, true);
+            gl.clearColor(0.85, 0.95, 0.9, 1); // set clear color (RGBA)
+            gl.fitScreen();
+            gl.enable(gl.DEPTH_TEST);
+            gl.depthFunc(gl.LEQUAL);
+            Input.initialize(canvas);
+        }
+
+        function init() {
+            g_standardShader = new Shader(gl, GLUtils.getDomShaderSrc("standardVertexShader"),
+                GLUtils.getDomShaderSrc("standardFragmentShader"));
+            g_directionalLightShader = new Shader(gl, GLUtils.getDomShaderSrc("directionalLightVertexShader"),
+                GLUtils.getDomShaderSrc("directionalLightFragmentShader"));
+            g_pointLightShader = new Shader(gl, GLUtils.getDomShaderSrc("pointLightVertexShader"),
+                GLUtils.getDomShaderSrc("pointLightFragmentShader"));
+            g_gridShader = new Shader(gl, GLUtils.getDomShaderSrc("gridVertexShader"),
+                GLUtils.getDomShaderSrc("gridFragmentShader"));
+
+            g_camera = new PerspectiveCamera(gl, 45, 0.1, 1000, canvas.width / canvas.height);
+            g_cameraController = new OrbiterCameraController(canvas, g_camera);
+            g_cameraController.target.set(0, 1.5, 0);
+
+            let gold = { tint: [1, 0.7, 0, 1], shininess: 32 };
+            let gray = { tint: [0.6, 0.6, 0.6, 1], shininess: 32 };
+            g_globe = new Model(new Transform(), Primitives.Sphere.getMesh(gl), gold);
+            g_pyramid = new Model(new Transform(), Primitives.Tetrahedron.getMesh(gl), gray);
+            g_ground = new Model(new Transform(), Primitives.Quad.getMesh(gl), gray);
+
+            g_globe.transform.position.set(0, 2, 0);
+
+            g_pyramid.transform.position.set(0, 0.25, 0);
+            g_pyramid.transform.scale.set(1, 1, 1);
+
+            g_ground.transform.position.set(0, -0.1, 0);
+            g_ground.transform.rotation.set(-90, 0, 0); // ground is rotated 90 degrees
+            g_ground.transform.scale.set(5, 5, 1);
+
+            g_grid = new GridAxis(gl);
+
+            renderLoop = new RenderLoop(draw).start();
+        }
+
+        function draw(deltaTime) {
+            Input.update();
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            g_cameraController.update();
+
+            // TODO: use this to rotate the point light
+            Matrix4x4.transformV3(Matrix4x4.rotationMatrixY(deltaTime * 60),
+                g_lightingData.pointLight, g_lightingData.pointLight);
+
+            g_globe.update();
+            g_pyramid.update();
+            g_ground.update();
+
+            // g_globe.render(g_standardShader, g_camera, g_lightingData);
+            // g_pyramid.render(g_standardShader, g_camera, g_lightingData);
+            // g_ground.render(g_standardShader, g_camera, g_lightingData);
+
+            // g_globe.render(g_directionalLightShader, g_camera, g_lightingData);
+            // g_pyramid.render(g_directionalLightShader, g_camera, g_lightingData);
+            // g_ground.render(g_directionalLightShader, g_camera, g_lightingData);
+
+            g_globe.render(g_pointLightShader, g_camera, g_lightingData);
+            g_pyramid.render(g_pointLightShader, g_camera, g_lightingData);
+            g_ground.render(g_pointLightShader, g_camera, g_lightingData);
+
+            g_grid.render(g_gridShader, g_camera);
+        }
+
+        window.addEventListener("load", function () {
+            setup();
+            init();
+        });
+
+    </script>
+</body>
+
+</html>
